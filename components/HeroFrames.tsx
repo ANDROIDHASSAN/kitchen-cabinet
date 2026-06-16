@@ -6,7 +6,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { motion } from "framer-motion";
 import { RevealLines } from "@/components/RevealText";
 import { site } from "@/data/site";
-import { getFrameList, getImages, startPreload, framesReady } from "@/lib/frameLoader";
+import { getFrameList, getImages, startPreload, framesReady, subscribeProgress } from "@/lib/frameLoader";
 import { usePrefersReducedMotion } from "@/lib/useReducedMotion";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -100,33 +100,30 @@ export default function HeroFrames() {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
-    // GPU-ready bitmaps decoded ONCE up-front. Drawing an ImageBitmap never
-    // triggers a synchronous JPEG decode, so every paint during the scrub is
-    // instant — this is what removes the per-frame hitching/jank.
-    type Frame = ImageBitmap | HTMLImageElement;
-    const bitmaps: (ImageBitmap | null)[] = new Array(frames.length).fill(null);
+    const dimsOf = (s: HTMLImageElement): [number, number] => [s.naturalWidth, s.naturalHeight];
 
-    const decodeAll = () => {
-      images.forEach((img, i) => {
-        if (bitmaps[i] || !img || !img.complete || img.naturalWidth === 0) return;
-        // 'pixelated:false' default; decode at source resolution
-        createImageBitmap(img)
-          .then((bm) => {
-            bitmaps[i] = bm;
-          })
-          .catch(() => {});
-      });
+    // Find the nearest loaded frame to avoid black flickers during progressive loading.
+    const findNearestLoadedFrame = (idx: number): HTMLImageElement | null => {
+      const n = frames.length;
+      let dist = 0;
+      while (dist < n) {
+        const prev = idx - dist;
+        const next = idx + dist;
+        if (prev >= 0) {
+          const img = images[prev];
+          if (img && img.complete && img.naturalWidth > 0) return img;
+        }
+        if (next < n) {
+          const img = images[next];
+          if (img && img.complete && img.naturalWidth > 0) return img;
+        }
+        dist++;
+      }
+      return null;
     };
 
-    const dimsOf = (s: Frame): [number, number] =>
-      s instanceof ImageBitmap ? [s.width, s.height] : [s.naturalWidth, s.naturalHeight];
-    const ok = (s?: Frame | null): s is Frame =>
-      !!s && (s instanceof ImageBitmap ? s.width > 0 : s.complete && s.naturalWidth > 0);
-    // prefer the decoded bitmap; fall back to the <img> until it's ready
-    const frameAt = (i: number): Frame | null => bitmaps[i] ?? images[i] ?? null;
-
-    // cover-fit draw of one frame at the current globalAlpha
-    const drawCover = (s: Frame) => {
+    // cover-fit draw of one frame
+    const drawCover = (s: HTMLImageElement) => {
       const { w, h } = state;
       const [iw, ih] = dimsOf(s);
       const r = Math.max(w / iw, h / ih);
@@ -135,10 +132,7 @@ export default function HeroFrames() {
       ctx.drawImage(s, (w - nw) / 2, (h - nh) / 2, nw, nh);
     };
 
-    // Blend the two frames that straddle the current fractional position so the
-    // 31 sparse source frames read as one continuous dissolve — no hard cuts.
-    // smoothstep so the dissolve eases in/out at each frame boundary (gentler
-    // than a linear crossfade — removes the "ghost at 50%" look).
+    // Blend the two frames that straddle the current fractional position
     const smooth = (t: number) => t * t * (3 - 2 * t);
 
     const render = () => {
@@ -152,23 +146,25 @@ export default function HeroFrames() {
       ctx.fillStyle = "#1B1916";
       ctx.fillRect(0, 0, w, h);
 
-      const a = frameAt(i0);
-      const b = frameAt(i1);
-      // base frame (fall back to the next one if this one isn't decoded yet)
+      const a = findNearestLoadedFrame(i0);
+      const b = findNearestLoadedFrame(i1);
+
       ctx.globalAlpha = 1;
-      if (ok(a)) drawCover(a);
-      else if (ok(b)) drawCover(b);
+      if (a) {
+        drawCover(a);
+      } else if (b) {
+        drawCover(b);
+      }
+
       // crossfade the next frame over the base
-      if (i1 !== i0 && frac > 0.001 && ok(a) && ok(b)) {
+      if (i1 !== i0 && frac > 0.001 && a && b && a !== b) {
         ctx.globalAlpha = frac;
         drawCover(b);
         ctx.globalAlpha = 1;
       }
     };
 
-    // Eased render loop: every animation frame, glide `current` a fraction of the
-    // way toward `target` and repaint. Self-stops once settled (no perpetual rAF),
-    // and any scroll update revives it. SMOOTH lower = smoother / more inertia.
+    // Eased render loop: every animation frame, glide `current` toward `target` and repaint.
     const SMOOTH = 0.1;
     let rafId = 0;
     let running = false;
@@ -192,8 +188,7 @@ export default function HeroFrames() {
       }
     };
 
-    // Measure off the viewport — the pinned wrap is always full-viewport, and this
-    // avoids stale clientWidth readings before GSAP's pin layout settles.
+    // Measure off the viewport
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const w = window.innerWidth;
@@ -212,7 +207,6 @@ export default function HeroFrames() {
 
     resize();
     window.addEventListener("resize", resize);
-    // re-measure after pin layout / fonts settle
     ScrollTrigger.addEventListener("refresh", resize);
     requestAnimationFrame(resize);
 
@@ -238,54 +232,42 @@ export default function HeroFrames() {
       scrub: 0.4,
       onUpdate: (self) => {
         const p = self.progress;
-        // feed the eased loop a new target; it glides `current` toward it
         state.target = p;
         requestRender();
 
-        // Crossfade the headline narrative in sync with the build.
         STAGES.forEach((s, k) => {
           const el = stageRefs.current[k];
           if (!el) return;
           const op = stageOpacity(p, s);
-          // rise from below when entering, lift away when leaving
           const y = (p < s.center ? 1 : -1) * (1 - op) * 26;
           el.style.opacity = String(op);
           el.style.transform = `translateY(${y}px)`;
           el.style.pointerEvents = op > 0.6 ? "auto" : "none";
         });
-        // Eyebrow fades out early so it never lingers over the finished kitchen.
+
         if (eyebrowRef.current) {
           eyebrowRef.current.style.opacity = String(1 - clamp01((p - 0.05) / 0.13));
         }
-        // Scroll cue disappears after any scroll.
+
         if (cueRef.current) {
           cueRef.current.style.opacity = p > 0.01 ? "0" : "1";
         }
       },
     });
 
-    // Pre-decode everything to GPU bitmaps the moment the JPEGs are ready, then
-    // keep trying for any stragglers. Redraw as frames/bitmaps stream in.
-    decodeAll();
-    framesReady().then(() => {
-      decodeAll();
-      render();
+    // Request a redraw whenever a frame settles in the background
+    const unsubProgress = subscribeProgress(() => {
+      requestRender();
     });
-    const drawId = setInterval(() => {
-      decodeAll();
-      render();
-    }, 150);
-    setTimeout(() => clearInterval(drawId), 6000);
 
     ScrollTrigger.refresh();
 
     return () => {
       window.removeEventListener("resize", resize);
       ScrollTrigger.removeEventListener("refresh", resize);
-      clearInterval(drawId);
+      unsubProgress();
       running = false;
       if (rafId) cancelAnimationFrame(rafId);
-      bitmaps.forEach((b) => b?.close());
       st.kill();
     };
   }, [reduced, ready]);

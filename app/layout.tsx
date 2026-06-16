@@ -3,7 +3,6 @@ import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { site } from "@/data/site";
 import SmoothScroll from "@/components/SmoothScroll";
-import Preloader from "@/components/Preloader";
 import Cursor from "@/components/Cursor";
 
 // Display serif (free, Awwwards-grade fallback for PP Editorial New).
@@ -49,7 +48,6 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full antialiased">
-        <Preloader />
         <SmoothScroll />
         <Cursor />
         {children}
