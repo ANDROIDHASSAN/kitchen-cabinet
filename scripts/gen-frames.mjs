@@ -7,7 +7,7 @@ import { readdirSync, writeFileSync } from "fs";
 
 // The hero SCROLL sequence is served from /images2 (set via FRAME_DIR if you
 // move it). Section imagery lives separately in /images.
-const FRAME_DIR = "images2";
+const FRAME_DIR = "images3";
 const dir = `public/${FRAME_DIR}`;
 const frames = readdirSync(dir)
   .filter((f) => /^frame_\d+\.(jpg|jpeg|png|webp)$/i.test(f))
