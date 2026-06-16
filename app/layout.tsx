@@ -46,6 +46,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${fraunces.variable} ${geist.variable} ${geistMono.variable} h-full`}
+      suppressHydrationWarning
     >
       <body className="min-h-full antialiased">
         <Preloader />
