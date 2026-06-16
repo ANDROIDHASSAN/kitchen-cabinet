@@ -1,26 +1,159 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ------------------------------------------------------------------ */
+/*  DESIGN TOKENS — grounded in cabinetry materials.                  */
+/*  Palette psychology lives in the build brief; brass is RATIONED.   */
+/* ------------------------------------------------------------------ */
+@theme {
+  --color-bone: #ede9e2; /* gallery plaster — primary background */
+  --color-ink: #1b1916; /* near-black — never pure #000 */
+  --color-forest: #20342b; /* deep green — wealth, heritage, trust */
+  --color-brass: #a6824c; /* brushed brass — the single accent */
+  --color-walnut: #5b4636; /* real wood — warmth, tactility */
+  --color-mist: #d7d1c7; /* hairline dividers, quiet structure */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  /* tints used for scrims / hovers */
+  --color-bone-80: #ede9e2cc;
+  --color-forest-90: #20342be6;
+  --color-ink-70: #1b1916b3;
+
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-geist);
   --font-mono: var(--font-geist-mono);
+
+  /* fluid type scale */
+  --text-display: clamp(2.75rem, 8vw, 9rem);
+  --text-h1: clamp(2.4rem, 6.5vw, 6rem);
+  --text-h2: clamp(2rem, 5vw, 4.5rem);
+  --text-h3: clamp(1.5rem, 3vw, 2.5rem);
+  --text-body: clamp(1rem, 1.1vw, 1.125rem);
+  --text-label: 0.75rem;
+
+  /* the one allowed shadow recipe: soft, large, low-opacity */
+  --shadow-soft: 0 40px 80px -40px rgba(27, 25, 22, 0.25);
+
+  --radius-edge: 3px; /* cabinet edges are crisp */
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-inout: cubic-bezier(0.83, 0, 0.17, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ------------------------------------------------------------------ */
+/*  BASE                                                              */
+/* ------------------------------------------------------------------ */
+* {
+  border-color: var(--color-mist);
+}
+
+html {
+  background: var(--color-bone);
+  /* Lenis drives scroll; keep native smooth off to avoid fighting it */
+  scroll-behavior: auto;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bone);
+  color: var(--color-ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: var(--text-body);
+  line-height: 1.6;
+  overflow-x: clip;
+  font-feature-settings: "ss01", "cv01";
+}
+
+/* Display serif: optical sizing on, tight leading */
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+  font-optical-sizing: auto;
+  line-height: 0.98;
+  letter-spacing: -0.015em;
+}
+
+/* The "spec-sheet" voice — mono, uppercase, letter-spaced. The brand device. */
+.label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  line-height: 1.2;
+}
+
+::selection {
+  background: var(--color-brass);
+  color: var(--color-bone);
+}
+
+/* ------------------------------------------------------------------ */
+/*  ACCESSIBILITY                                                     */
+/* ------------------------------------------------------------------ */
+:focus-visible {
+  outline: 2px solid var(--color-brass);
+  outline-offset: 3px;
+  border-radius: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  UTILITIES                                                         */
+/* ------------------------------------------------------------------ */
+.hairline {
+  height: 1px;
+  background: var(--color-mist);
+  border: 0;
+}
+
+/* brass underline that draws in on hover — the link signature */
+.link-underline {
+  position: relative;
+  display: inline-block;
+}
+.link-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  height: 1px;
+  width: 100%;
+  background: var(--color-brass);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.5s var(--ease-out);
+}
+.link-underline:hover::after,
+.link-underline:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+/* NOTE: content-visibility:auto was removed here. With GSAP ScrollTrigger pins
+   (hero + horizontal projects) it made off-screen sections report an ESTIMATED
+   height, so pin math desynced and scrolling "jumped". Kept as a no-op class so
+   markup needn't change. Re-enable per-section only if it never sits above a pin. */
+.cv-auto {
+}
+
+/* clip line-reveal mask used by RevealText */
+.reveal-mask {
+  display: block;
+  overflow: hidden;
+}
+
+/* hide native cursor only when the custom cursor is active (desktop, fine pointer) */
+@media (pointer: fine) {
+  body.has-cursor,
+  body.has-cursor * {
+    cursor: none;
+  }
 }
